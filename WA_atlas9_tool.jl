@@ -156,7 +156,7 @@ end
 """
 """
 function general_recurrence_nomogram(two_year, hundred_year)
-    mapping = [1 0.75073 0.58722 0.37898 0.18518 0;
+    mapping_array = [1 0.75073 0.58722 0.37898 0.18518 0;
                0 0.24927 0.41278 0.62102 0.81482 1]
 
     output_tuple = (
@@ -216,5 +216,8 @@ function generate_full_data(state::String, region::Int, lat::Float64, long::Floa
     wide_df = unstack(out_df, :recurrence, :duration, :depth)
     return wide_df
 end
+
+
+test = generate_full_data("wa", 3, 47.115047, -123.754755, 341.0)
 
 
