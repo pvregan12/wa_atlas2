@@ -212,6 +212,9 @@ function generate_full_data(state::String, region::Int, lat::Float64, long::Floa
             push!(out_df, (rec, dur_label, depth))
         end
     end
+    # long => wide format
+    wide_df = unstack(out_df, :recurrence, :duration, :depth)
+    return wide_df
 end
 
 
