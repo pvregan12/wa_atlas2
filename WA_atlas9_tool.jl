@@ -1,4 +1,5 @@
 using Rasters
+using ArchGDAL
 using Interpolations
 using DataFrames
 
@@ -14,15 +15,20 @@ end
 function read_ascii_grid(state::String, recurrence::Int, duration::Int, lat::Float64, long::Float64)
     # get ascii file name
     ascii_name = generate_ascii_name(state, recurrence, duration)
+    script_dir = @__DIR__
+
+    # initialize rast outside try/catch block
+    rast = nothing
     # pull ascii file
     try
-        r = Raster(ascii_name)
+        println(joinpath(script_dir, ascii_name))
+        rast = Raster(joinpath(script_dir, ascii_name))
     catch e
         @error "Issue finding ascii grid named $ascii_name : $e"
         return nothing
     end  
     # bilinear interpolation between lat/long
-    ri = interpolate(r, BSpline(Linear()))
+    ri = interpolate(rast, BSpline(Linear()))
     val_bilinear = ri[Coord(long, lat)]
     if val_bilinear < 0
         val_bilinear = NaN
@@ -218,6 +224,9 @@ function generate_full_data(state::String, region::Int, lat::Float64, long::Floa
 end
 
 
+
+
+# testing
 test = generate_full_data("wa", 3, 47.115047, -123.754755, 341.0)
 
 
