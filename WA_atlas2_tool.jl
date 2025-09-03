@@ -52,7 +52,8 @@ function read_ascii_grid(state::String, recurrence::Int, duration::Int, lat::Flo
             duration=duration,
             latitude=lat,
             longitude=long,
-            depth=val_bilinear)
+            depth=val_bilinear,
+            intensity=val_bilinear/duration)
 
 end
 
@@ -77,7 +78,7 @@ function generate_one_hour_data(six_hour_data, twentyfour_hour_data, region::Int
         two_one = 0.077 + 0.715*(x_one*(x_two/x_three)) - 0.0004*(x_five/x_six)
         hundred_one = 0.187 + 0.833*(x_three*(x_three/x_four))
     elseif region === 3
-        two_one = 0.157 + 0.513*(x_one*(x_one.x_two))
+        two_one = 0.157 + 0.513*(x_one*(x_one/x_two))
         hundred_one = 0.324 + 0.752*(two_one*(x_three/x_one))
     elseif region === 4
         two_one = 0.160 + 0.520*(x_one*(x_one/x_two))
@@ -198,10 +199,11 @@ function generate_full_data(state::String, region::Int, lat::Float64, long::Floa
     hundredtwentyfour = read_ascii_grid(state, 100, 24, lat, long)
 
     # get all 6-hour depths, including storing 2 and 24 hour
-    six_hours = general_recurrence_nomogram(twosix, hundredsix)
+    six_hours = general_recurrence_nomogram(twosix.depth, hundredsix.depth)
+    println(six_hours)
 
     # get all 24-hour depths
-    twentyfour_hours = general_recurrence_nomogram(twotwentyfour, hundredtwentyfour)
+    twentyfour_hours = general_recurrence_nomogram(twotwentyfour.depth, hundredtwentyfour.depth)
 
     # get 1-hour depths
     one_hours = generate_one_hour_data(six_hours, twentyfour_hours, region, lat, long, elev)
@@ -218,8 +220,8 @@ function generate_full_data(state::String, region::Int, lat::Float64, long::Floa
                         ("3-hr" => three_hours),
                         ("6-hr" => six_hours),
                         ("12-hr" => twelve_hours),
-                        ("24-hr" => twentyfour_hours_hours)]
-    out_df = DataFrame(recurrence=Int[], duration=String[], depth=Float64[])
+                        ("24-hr" => twentyfour_hours)]
+    out_df = DataFrame(recurrence=String[], duration=String[], depth=Float64[])
     # format into a dataframe
     for (dur_label, nt) in duration_labels
         for (k, v) in pairs(nt)
