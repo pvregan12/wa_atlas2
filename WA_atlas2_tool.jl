@@ -2,7 +2,11 @@ using Rasters
 using ArchGDAL
 using Interpolations
 using DataFrames
+using DimensionalData: X, Y, At, Near
 
+import StatsBase
+import Interpolations: Linear, Nearest
+import ArchGDAL
 
 """
 """
@@ -28,15 +32,21 @@ function read_ascii_grid(state::String, recurrence::Int, duration::Int, lat::Flo
         return nothing
     end  
     # bilinear interpolation between lat/long
-    ri = interpolate(rast, BSpline(Linear()))
-    val_bilinear = ri[Coord(long, lat)]
-    if val_bilinear < 0
+    #ri = interpolate(rast, BSpline(Linear()))
+    #pt = (X(At(long)), Y(At(lat)))
+    #val_bilinear = ri[X(At(long)), Y(At(lat))]
+    #val_bilinear = Rasters.extract(rast, (X(At(long)), Y(At(lat))); method=Linear())
+    
+    val_bilinear = rast[X(Near(long)), Y(Near(lat))]
+    
+    
+    if val_bilinear < 0 || isnan(val_bilinear)
         val_bilinear = NaN
     else
         # divide by 100,000 to get to inches of depth
         val_bilinear = val_bilinear / 100000
     end
-
+    println("$recurrence year $duration hour depth: $val_bilinear")
     return (state=state,
             recurrence=recurrence,
             duration=duration,
