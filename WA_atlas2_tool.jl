@@ -5,14 +5,14 @@ using DataFrames
 using PrettyTables
 using DimensionalData: X, Y, At, Near
 
-using Gtk4
+#using Gtk4
 
 import StatsBase
 import Interpolations: Linear, Nearest
 import ArchGDAL
 
 
-using Gtk4
+#using Gtk4
 using DataFrames
 using PrettyTables
 import PrettyTables: tf_ascii, ft_round
@@ -251,11 +251,12 @@ end
 
 
 # testing
-#test = generate_full_data("wa", 3, 47.115047, -123.754755, 341.0)
+test = generate_full_data("wa", 3, 47.115047, -123.754755, 341.0)
 
 
-win = GtkWindow("Washington Atlas2 Vol9 Tool", 600, 600)
+#win = GtkWindow("Washington Atlas2 Vol9 Tool", 600, 600)
 
+#=
 # create box container
 vbox = GtkBox(:v)
 set_gtk_property!(vbox, :spacing, 10)
@@ -389,3 +390,5 @@ showall(win)
 
 # Keep the main thread alive
 Gtk4.gtk_main()
+=#
+
