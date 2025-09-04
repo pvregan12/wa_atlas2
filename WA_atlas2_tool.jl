@@ -2,15 +2,26 @@ using Rasters
 using ArchGDAL
 using Interpolations
 using DataFrames
+using PrettyTables
 using DimensionalData: X, Y, At, Near
+
+using Gtk4
 
 import StatsBase
 import Interpolations: Linear, Nearest
 import ArchGDAL
 
+
+using Gtk4
+using DataFrames
+using PrettyTables
+import PrettyTables: tf_ascii, ft_round
+
+
 """
 """
 function generate_ascii_name(state::String, recurrence::Int, duration::Int)
+    state = lowercase(state)
     return "na2_"*state*"_"*string(recurrence)*"yr"*string(duration)*"hr.asc"
 end
 
@@ -68,7 +79,7 @@ function generate_one_hour_data(six_hour_data, twentyfour_hour_data, region::Int
         x_four = twentyfour_hour_data.hundred_year
 
         x_five = lat - 40
-        x_six = long - 100
+        x_six = abs(long) - 100
         zee = elev / 100
         
     if region === 1
@@ -232,6 +243,7 @@ function generate_full_data(state::String, region::Int, lat::Float64, long::Floa
     end
     # long => wide format
     wide_df = unstack(out_df, :recurrence, :duration, :depth)
+    #pretty_results = pretty_table(wide_df)
     return wide_df
 end
 
@@ -239,6 +251,141 @@ end
 
 
 # testing
-test = generate_full_data("wa", 3, 47.115047, -123.754755, 341.0)
+#test = generate_full_data("wa", 3, 47.115047, -123.754755, 341.0)
 
 
+win = GtkWindow("Washington Atlas2 Vol9 Tool", 600, 600)
+
+# create box container
+vbox = GtkBox(:v)
+set_gtk_property!(vbox, :spacing, 10)
+set_gtk_property!(vbox, :margin_left, 20)
+set_gtk_property!(vbox, :margin_right, 20)
+set_gtk_property!(vbox, :margin_top, 20)
+set_gtk_property!(vbox, :margin_bottom, 20)
+
+
+# Create input fields
+# state
+state_label = GtkLabel("State:")
+set_gtk_property!(state_label, :halign, Gtk4.GtkAlign.START)
+state_ent = GtkEntry()
+set_gtk_property!(state_ent, :text, "WA")
+
+# region
+region_label = GtkLabel("Region:")
+set_gtk_property!(region_label, :halign, Gtk4.GtkAlign.START)
+region_ent = GtkEntry()
+set_gtk_property!(region_ent, :text, "3")
+
+# latitude
+lat_label = GtkLabel("Latitude:")
+set_gtk_property!(lat_label, :halign, Gtk4.GtkAlign.START)
+lat_ent = GtkEntry()
+set_gtk_property!(lat_ent, :text, "47.115078")
+
+# longitude
+long_label = GtkLabel("Longitude:")
+set_gtk_property!(long_label, :halign, Gtk4.GtkAlign.START)
+long_ent = GtkEntry()
+set_gtk_property!(long_ent, :text, "-123.754755")
+
+# Elevation
+elev_label = GtkLabel("Elevation:")
+set_gtk_property!(elev_label, :halign, Gtk4.GtkAlign.START)
+elev_ent = GtkEntry()
+set_gtk_property!(elev_ent, :text, "341")
+
+# Results area
+results_label = GtkLabel("Results:")
+set_gtk_property!(results_label, :halign, Gtk4.GtkAlign.START)
+results_textview = GtkTextView()
+results_buffer = GtkTextBuffer()
+set_gtk_property!(results_textview, :monospace, true)
+set_gtk_property!(results_textview, :buffer, results_buffer)
+set_gtk_property!(results_textview, :editable, false)
+set_gtk_property!(results_textview, :wrap_mode, Gtk4.GtkWrapMode.NONE)
+
+# scrolled window for results
+results_scrolled = GtkScrolledWindow()
+push!(results_scrolled, results_textview)
+set_gtk_property!(results_scrolled, :hscrollbar_policy, Gtk4.GtkPolicyType.ALWAYS)
+set_gtk_property!(results_scrolled, :vscrollbar_policy, Gtk4.GtkPolicyType.AUTOMATIC)
+set_gtk_property!(results_scrolled, :height_request, 200)
+
+# run button
+run_button = GtkButton("Compute Rainfall")
+
+function on_run(w)
+    try
+        state = get_gtk_property(state_ent, :text, String)
+        region = parse(Int, get_gtk_property(region_ent, :text, String))
+        lat = parse(Float64, get_gtk_property(lat_ent, :text, String))
+        long = parse(Float64, get_gtk_property(long_ent, :text, String))
+        elev = parse(Float64, get_gtk_property(elev_ent, :text, String))
+
+        # clear prev results
+        set_gtk_property!(results_buffer, :text, "Computing...")
+
+        # call function
+        results = generate_full_data(state, region, lat, long, elev)
+
+        # format and display
+        if results !== nothing
+            try
+                result_text = sprint() do io
+                    pretty_table(io, results;
+                                backend=Val(:text),
+                                alignment=:c,
+                                crop=:none,
+                                formatters=PrettyTables.ft_round(2),
+                                tf=tf_ascii,
+                                header=(names(results), nothing))
+                end
+                set_gtk_property!(results_buffer, :text, result_text)
+            catch e
+                @warn "PrettyTables formatting failed: $e"
+                result_text = string(results)
+                set_gtk_property!(results_buffer, :text, result_text)
+            end
+            
+        else
+            set_gtk_property!(results_buffer, :text, "Error: Could not compute")            
+        end
+
+    catch e
+        error_text = "Error: $e\n\nPlease check your input values"
+        set_gtk_property!(results_buffer, :text, error_text)
+        @warn "Error in computation: $e"
+    end
+end
+signal_connect(on_run, run_button, "clicked")
+
+# Add all widgets to the vertical box
+push!(vbox, state_label)
+push!(vbox, state_ent)
+push!(vbox, region_label) 
+push!(vbox, region_ent)
+push!(vbox, lat_label)
+push!(vbox, lat_ent)
+push!(vbox, long_label)
+push!(vbox, long_ent)
+push!(vbox, elev_label)
+push!(vbox, elev_ent)
+push!(vbox, run_button)
+push!(vbox, results_label)
+push!(vbox, results_scrolled)
+
+# Add the box to the window
+push!(win, vbox)
+
+# Replace the existing signal_connect for destroy with this:
+signal_connect(win, "destroy") do widget
+    Gtk4.gtk_quit()
+    exit()
+end
+
+showall(win)
+
+# Keep the main thread alive
+Gtk4.gtk_main()
