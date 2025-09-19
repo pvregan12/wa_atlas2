@@ -235,7 +235,7 @@ def compute_two_hour_depths(one_hours:dict, six_hours:dict, region:int):
             "fifty_year": 0.278*six_hours.fifty_year + 0.722*one_hours.fifty_year,
             "hundred_year": 0.278*six_hours.hundred_year + 0.722*one_hours.hundred_year
        }
-    elif region == 3 | region == 4:
+    elif region == 3 or region == 4:
        return {
             "two_year": 0.240*six_hours.two_year + 0.760*one_hours.two_year,
             "five_year": 0.240*six_hours.five_year + 0.760*one_hours.five_year,
@@ -266,7 +266,7 @@ def compute_three_hour_depths(one_hours:dict, six_hours:dict, region:int):
             "fifty_year": 0.503*six_hours.fifty_year + 0.497*one_hours.fifty_year,
             "hundred_year": 0.503*six_hours.hundred_year + 0.497*one_hours.hundred_year
        }
-    elif region == 3 | region == 4:
+    elif region == 3 or region == 4:
        return {
             "two_year": 0.468*six_hours.two_year + 0.532*one_hours.two_year,
             "five_year": 0.468*six_hours.five_year + 0.532*one_hours.five_year,
@@ -337,28 +337,28 @@ class AtlasApp:
         state_var = tk.StringVar()
         state_label = ttk.Label(main_frame, text="State")
         state_label.grid(row=1, column=0, sticky=tk.W, pady=5, padx=(0,10))
-        state_entry = ttk.Entry(main_frame, width=25)
-        state_entry.grid(row=1, column=1, sticky=(tk.W, tk.E))
+        self.state_entry = ttk.Entry(main_frame, width=25)
+        self.state_entry.grid(row=1, column=1, sticky=(tk.W, tk.E))
 
         lat_label = ttk.Label(main_frame, text="Latitude (decimal)")
         lat_label.grid(row=2, column=0, sticky=tk.W, pady=5, padx=(0,10))
-        lat_entry = ttk.Entry(main_frame, width=25)
-        lat_entry.grid(row=2, column=1, sticky=(tk.W, tk.E))
+        self.lat_entry = ttk.Entry(main_frame, width=25)
+        self.lat_entry.grid(row=2, column=1, sticky=(tk.W, tk.E))
 
         long_label = ttk.Label(main_frame, text="Longitude (decimal)")
         long_label.grid(row=3, column=0, sticky=tk.W, pady=5, padx=(0,10))
-        long_entry = ttk.Entry(main_frame, width=25)
-        long_entry.grid(row=3, column=1, sticky=(tk.W, tk.E))
+        self.long_entry = ttk.Entry(main_frame, width=25)
+        self.long_entry.grid(row=3, column=1, sticky=(tk.W, tk.E))
 
         region_label = ttk.Label(main_frame, text="Region (1-4))")
         region_label.grid(row=4, column=0, sticky=tk.W, pady=5, padx=(0,10))
-        region_entry = ttk.Entry(main_frame, width=25)
-        region_entry.grid(row=4, column=1, sticky=(tk.W, tk.E))
+        self.region_entry = ttk.Entry(main_frame, width=25)
+        self.region_entry.grid(row=4, column=1, sticky=(tk.W, tk.E))
 
         elev_label = ttk.Label(main_frame, text="Elevation (ft NGVD29)")
         elev_label.grid(row=5, column=0, sticky=tk.W, pady=5, padx=(0,10))
-        elev_entry = ttk.Entry(main_frame, width=25)
-        elev_entry.grid(row=5, column=1, sticky=(tk.W, tk.E))
+        self,elev_entry = ttk.Entry(main_frame, width=25)
+        self.elev_entry.grid(row=5, column=1, sticky=(tk.W, tk.E))
 
         # run button 
         run_button = ttk.Button(main_frame, text="Run", command=self.run_action)
@@ -373,7 +373,7 @@ class AtlasApp:
 
         # scrollbar
         scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=self.status_text.yview)
-        scrollbar.grid(row=2, column=2, sticky=(tk.N, tk.S))
+        scrollbar.grid(row=8, column=2, sticky=(tk.N, tk.S))
         self.status_text.configure(yscrollcommand=scrollbar.set)
 
         # grid weights
@@ -381,24 +381,29 @@ class AtlasApp:
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
 
+    def run_action(self):
+        try:
+            state = self.state_entry.get()
+            lat = float(self.lat_entry.get())
+            long = float(self.long_entry.get())
+            region = int(self.region_entry.get())
+            elev = float(self.elev_entry.get())
+
+            result_df = self.generate_full_data(state, region, lat, long, elev)
+            self.update_status_with_dataframe(result_df)
+            
+        except ValueError as e:
+            self.update_status(f"Error: Please enter valid numbers - {e}")
+        except Exception as e:
+            self.update_status(f"Error: {e}")
+
     def update_status(self, message):
         self.status_text.insert(tk.End, message + "\n")
         self.status_text.see(tk.End)
 
-    def run_action(self):
-        state = self.state_entry.get()
-        lat = self.lat_entry.get()
-        long = self.long_entry.get()
-        region = self.region_entry.get()
-        elev = self.elev_entry.get()
-
-        result_df = self.generate_full_data(state, region, lat, long, elev)
-
-        self.update_status_with_dataframe(result_df)
-
     def update_status_with_dataframe(self, df):
         # clear
-        self.status_text.delete(1,0, tk.END)
+        #self.status_text.delete(1,0, tk.END)
 
         # convert dataframe to string for nice format
         df_string = df.to_string(
@@ -409,7 +414,6 @@ class AtlasApp:
             max_rows=50
         )
         self.status_text.insert(tk.END, df_string)
-
 
     def generate_ascii_name(self, state:str, recurrence:int, duration:int) -> str:
         state = state.lower()
@@ -636,7 +640,7 @@ class AtlasApp:
                     "fifty_year": 0.278*six_hours.fifty_year + 0.722*one_hours.fifty_year,
                     "hundred_year": 0.278*six_hours.hundred_year + 0.722*one_hours.hundred_year
             }
-        elif region == 3 | region == 4:
+        elif region == 3 or region == 4:
             return {
                     "two_year": 0.240*six_hours.two_year + 0.760*one_hours.two_year,
                     "five_year": 0.240*six_hours.five_year + 0.760*one_hours.five_year,
@@ -667,7 +671,7 @@ class AtlasApp:
                     "fifty_year": 0.503*six_hours.fifty_year + 0.497*one_hours.fifty_year,
                     "hundred_year": 0.503*six_hours.hundred_year + 0.497*one_hours.hundred_year
             }
-        elif region == 3 | region == 4:
+        elif region == 3 or region == 4:
             return {
                     "two_year": 0.468*six_hours.two_year + 0.532*one_hours.two_year,
                     "five_year": 0.468*six_hours.five_year + 0.532*one_hours.five_year,
@@ -688,7 +692,7 @@ class AtlasApp:
         hundredtwentyfour = self.read_ascii_grid(state, 100, 24, lat, long)
 
         # get all 6-hour depths, including storing 2 and 24 hour
-        six_hours = self.general_recurrence_nomogram(twosix.depth, hundredsix.depth)
+        six_hours = self.general_recurrence_nomogram(twosix['depth'], hundredsix['depth'])
         print(six_hours)
 
         # get all 24-hour depths
@@ -716,12 +720,10 @@ class AtlasApp:
         #self.update_status_with_dataframe(out_df)
         return out_df
     
-
 # testing
 #test = generate_full_data("wa", 3, 47.115047, -123.754755, 341.0)
 
-
-if __name__ == "__main__"():
+if __name__ == "__main__":
     root = tk.Tk()
     app = AtlasApp(root)
     root.mainloop()
