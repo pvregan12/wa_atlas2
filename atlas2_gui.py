@@ -5,322 +5,15 @@ from scipy.interpolate import griddata
 import os
 import tkinter as tk
 from tkinter import ttk
+import traceback
 
-
-
-
-'''
-def generate_ascii_name(state:str, recurrence:int, duration:int) -> str:
-    state = state.lower()
-    return "na2_"+state+"_"+str(recurrence)+"yr"+str(duration)+"hr.asc"
-
-def clean_ascii_line(ascii_line:str) -> str:
-    return ascii_line.split(" ")[1].split("\n")[0]
-
-def read_ascii_grid(state:str, recurrence:int, duration:int, lat:float, long:float):
-    output_dict = {
-                'state': state,
-                'recurrence': recurrence,
-                'duration': duration,
-                'latitude': lat,
-                'longitude': long
-    }
-    
-    
-    file_name = generate_ascii_name(state, recurrence, duration)
-    directory = os.getcwd()
-
-    try:
-        file_path = Path(directory, file_name)
-
-        data_dump = open(file_path, 'r')
-        lines_dump = data_dump.readlines()
-
-        # get numeric values from header
-        num_cols = int(clean_ascii_line(lines_dump[0]))
-        num_rows = int(clean_ascii_line(lines_dump[1]))
-        xllc = float(clean_ascii_line(lines_dump[2]))
-        yllc = float(clean_ascii_line(lines_dump[3]))
-        cell_size = float(clean_ascii_line(lines_dump[4]))
-        nodata_val = int(clean_ascii_line(lines_dump[5]))
-
-
-    except Exception as e:
-        print(f"Error getting ascii grid: {e}")
-        return
-
-       
-    try:
-        # find the rows and cols nearest to the given lat/long
-        # row/lat
-        row_below = (lat - yllc) // cell_size
-
-        # pull those rows - offset is + 5 because of header
-        row_below = row_below + 5
-        row_above = row_below + 1
-
-        
-
-        # col/long
-        col_left = (long - xllc) // cell_size
-        col_right = col_left + 1
-
-        row_lines = lines_dump[row_below, row_above]
-        # split each line and pull col left, col right
-
-
-        latitudes = [(yllc + row_below * cell_size),
-                     (yllc + row_below * cell_size),
-                     (yllc + row_above * cell_size),
-                     (yllc + row_below * cell_size)
-                     ]
-        
-        longitudes = [(xllc + col_left * cell_size),
-                       (xllc + col_right * cell_size),
-                       (xllc + col_right * cell_size),
-                       (xllc + col_left * cell_size)
-                       ]
-        
-        values = [row_lines[0].split(" ")[col_left],
-                  row_lines[0].split(" ")[col_right],
-                  row_lines[1].split(" ")[col_right],
-                  row_lines[1].split(" ")[col_left]
-                  ]
-        
-        for i in range(len(values)):
-            if values[i] == -9999:
-                del values[i]
-                del latitudes[i]
-                del longitudes[i]
-        
-        if len(values) == 0:
-            print(f"Error: all points are nodata value")
-            return None
-        
-        elif len(values) == 1:
-            val_interpd = values[0]
-            
-        elif len(values) == 2:
-            # linear interpolation between lat/long pairs
-            p0 = np.array([longitudes[0]], latitudes[0])
-            p1 = np.array([longitudes[1]], latitudes[1])
-
-            query_point = np.array([long, lat])
-
-            # line between points
-            line_vec = p1 - p0
-            line_length_sq = np.dot(line_vec, line_vec)
-            if line_length_sq == 0: # p0 and p1 are the same
-                return values[0]
-            
-            # project the query onto the line
-            t = np.dot(query_point - p0, line_vec) / line_length_sq
-
-            # check if projection is within line segment
-            if t < 0 or t > 1:
-                return None
-            
-            # finally, linearly interp
-            val_interpd = values[0] + t * (values[1] - values[0])
-
-        elif len(values) == 3:
-            points = np.array([
-                [longitudes[0], latitudes[0]],
-                [longitudes[1], latitudes[1]],
-                [longitudes[2], latitudes[2]]
-            ])
-
-            z_vals = np.array(values)
-
-            new_point = np.array([long, lat])
-
-            val_interpd = griddata(points, z_vals, new_point, method='linear')
-        
-        elif len(values) == 4:
-            points = np.array([
-                [longitudes[0], latitudes[0]],
-                [longitudes[1], latitudes[1]],
-                [longitudes[2], latitudes[2]],
-                [longitudes[3], latitudes[3]]
-            ])
-
-            z_vals = np.array(values)
-
-            new_point = np.array([long, lat])
-
-            val_interpd = griddata(points, z_vals, new_point, method='linear')
-
-        else:
-            print(f"Error: too many points in lat/long/val lists")
-            pass
-
-        output_dict['depth'] = val_interpd
-        output_dict['intensity'] = val_interpd / duration        
-        
-    except Exception as e:
-        print(f"Error finding lat/long in ascii grid")
-        return None
-    
-def general_recurrence_nomogram(two_year, hundred_year):
-    mapping_array = [1, 0.75073, 0.58722, 0.37898, 0.18518, 0]
-    mapping_array_comp = 1 - mapping_array
-
-    output_dict = {
-                    'two_year': two_year,
-                    'five_year': (two_year*mapping_array[1]) + (hundred_year*mapping_array_comp[1]),
-                    'ten_year': (two_year*mapping_array[2]) + (hundred_year*mapping_array_comp[2]),
-                    'twentyfive_year': (two_year*mapping_array[3]) + (hundred_year*mapping_array_comp[3]),
-                    'fifty_year': (two_year*mapping_array[4]) + (hundred_year*mapping_array_comp[4]),
-                    'hundred_year': hundred_year
-    }
-
-    return output_dict
-
-def compute_one_hour_data(six_hour_data:dict, twentyfour_hour_data:dict, region:int, lat:float, long:float, elev:float):
-        
-    x_one = six_hour_data['two_year']
-    x_two = twentyfour_hour_data['two_year']
-
-    x_three = six_hour_data['hundred_year']
-    x_four = twentyfour_hour_data['hundred_year']
-
-    x_five = lat - 40
-    x_six = abs(long) - 100
-    zee = elev / 100
-        
-    if region == 1:
-        two_one = 0.019 + 0.711*(x_one*(x_one/x_two)) + 0.001*zee
-        hundred_one = 0.338 + 0.670*(x_three*(x_three/x_four)) + 0.001*zee
-    elif region == 2:
-        two_one = 0.077 + 0.715*(x_one*(x_two/x_three)) - 0.0004*(x_five/x_six)
-        hundred_one = 0.187 + 0.833*(x_three*(x_three/x_four))
-    elif region == 3:
-        two_one = 0.157 + 0.513*(x_one*(x_one/x_two))
-        hundred_one = 0.324 + 0.752*(two_one*(x_three/x_one))
-    elif region == 4:
-        two_one = 0.160 + 0.520*(x_one*(x_one/x_two))
-        hundred_one = 0.177 + 0.965*(two_one*(x_three/x_one))
-    else:
-        print(f"Invalide region number: {region}")
-    one_hour = general_recurrence_nomogram(two_one, hundred_one)
-    return one_hour
-
-def compute_twelve_hour_depths(six_hours, twentyfour_hours):
-    output_dict = {
-                    'two_year': (six_hours['two_year'] + twentyfour_hours['two_year'])/2,
-                    'five_year': (six_hours['five_year'] + twentyfour_hours['five_year'])/2,
-                    'ten_year': (six_hours['ten_year'] + twentyfour_hours['ten_year'])/2,
-                    'twentyfive_year': (six_hours['twentyfive_year'] + twentyfour_hours['twentyfive_year'])/2,
-                    'fifty_year': (six_hours['fifty_year'] + twentyfour_hours['fifty_year'])/2,
-                    'hundred_year': (six_hours['hundred_year'] + twentyfour_hours['hundred_year'])/2
-    }
-    return output_dict
-
-def compute_two_hour_depths(one_hours:dict, six_hours:dict, region:int):
-    if region == 1:
-        return {
-            "two_year": 0.250*six_hours.two_year + 0.750*one_hours.two_year,
-            "five_year": 0.250*six_hours.five_year + 0.750*one_hours.five_year,
-            "ten_year": 0.250*six_hours.ten_year + 0.750*one_hours.ten_year,
-            "twentyfive_year": 0.250*six_hours.twentyfive_year + 0.750*one_hours.twentyfive_year,
-            "fifty_year": 0.250*six_hours.fifty_year + 0.750*one_hours.fifty_year,
-            "hundred_year": 0.250*six_hours.hundred_year + 0.750*one_hours.hundred_year
-        }
-    elif region == 2:
-       return {
-            "two_year": 0.278*six_hours.two_year + 0.722*one_hours.two_year,
-            "five_year": 0.278*six_hours.five_year + 0.722*one_hours.five_year,
-            "ten_year": 0.278*six_hours.ten_year + 0.722*one_hours.ten_year,
-            "twentyfive_year": 0.278*six_hours.twentyfive_year + 0.722*one_hours.twentyfive_year,
-            "fifty_year": 0.278*six_hours.fifty_year + 0.722*one_hours.fifty_year,
-            "hundred_year": 0.278*six_hours.hundred_year + 0.722*one_hours.hundred_year
-       }
-    elif region == 3 or region == 4:
-       return {
-            "two_year": 0.240*six_hours.two_year + 0.760*one_hours.two_year,
-            "five_year": 0.240*six_hours.five_year + 0.760*one_hours.five_year,
-            "ten_year": 0.240*six_hours.ten_year + 0.760*one_hours.ten_year,
-            "twentyfive_year": 0.240*six_hours.twentyfive_year + 0.760*one_hours.twentyfive_year,
-            "fifty_year": 0.240*six_hours.fifty_year + 0.760*one_hours.fifty_year,
-            "hundred_year": 0.240*six_hours.hundred_year + 0.760*one_hours.hundred_year
-       }
-    else:
-        print(f"Error: invalid region: {region}")
-    
-def compute_three_hour_depths(one_hours:dict, six_hours:dict, region:int):
-    if region == 1:
-        return {
-            "two_year": 0.467*six_hours.two_year + 0.533*one_hours.two_year,
-            "five_year": 0.467*six_hours.five_year + 0.533*one_hours.five_year,
-            "ten_year": 0.467*six_hours.ten_year + 0.533*one_hours.ten_year,
-            "twentyfive_year": 0.467*six_hours.twentyfive_year + 0.533*one_hours.twentyfive_year,
-            "fifty_year": 0.467*six_hours.fifty_year + 0.533*one_hours.fifty_year,
-            "hundred_year": 0.467*six_hours.hundred_year + 0.533*one_hours.hundred_year
-        }
-    elif region == 2:
-       return {
-            "two_year": 0.503*six_hours.two_year + 0.497*one_hours.two_year,
-            "five_year": 0.503*six_hours.five_year + 0.497*one_hours.five_year,
-            "ten_year": 0.503*six_hours.ten_year + 0.497*one_hours.ten_year,
-            "twentyfive_year": 0.503*six_hours.twentyfive_year + 0.497*one_hours.twentyfive_year,
-            "fifty_year": 0.503*six_hours.fifty_year + 0.497*one_hours.fifty_year,
-            "hundred_year": 0.503*six_hours.hundred_year + 0.497*one_hours.hundred_year
-       }
-    elif region == 3 or region == 4:
-       return {
-            "two_year": 0.468*six_hours.two_year + 0.532*one_hours.two_year,
-            "five_year": 0.468*six_hours.five_year + 0.532*one_hours.five_year,
-            "ten_year": 0.468*six_hours.ten_year + 0.532*one_hours.ten_year,
-            "twentyfive_year": 0.468*six_hours.twentyfive_year + 0.532*one_hours.twentyfive_year,
-            "fifty_year": 0.468*six_hours.fifty_year + 0.532*one_hours.fifty_year,
-            "hundred_year": 0.468*six_hours.hundred_year + 0.532*one_hours.hundred_year
-       }
-    else:
-        print(f"Error: invalid region: {region}")
-
-def generate_full_data(state:str, region:int, lat:float, long:float, elev:float):
-
-    # first, get 2-year and 100-year 6-hour and 24-hour depths
-    twosix = read_ascii_grid(state, 2, 6, lat, long)
-    twotwentyfour = read_ascii_grid(state, 2, 24, lat, long)
-    hundredsix = read_ascii_grid(state, 100, 6, lat, long)
-    hundredtwentyfour = read_ascii_grid(state, 100, 24, lat, long)
-
-    # get all 6-hour depths, including storing 2 and 24 hour
-    six_hours = general_recurrence_nomogram(twosix.depth, hundredsix.depth)
-    print(six_hours)
-
-    # get all 24-hour depths
-    twentyfour_hours = general_recurrence_nomogram(twotwentyfour['depth'], hundredtwentyfour['depth'])
-
-    # get 1-hour depths
-    one_hours = compute_one_hour_data(six_hours, twentyfour_hours, region, lat, long, elev)
-
-    # compute the 2 and 3 hour depths
-    two_hours = compute_two_hour_depths(one_hours, six_hours, region)
-    three_hours = compute_three_hour_depths(one_hours, six_hours, region)
-
-    # get all 12-hour depths
-    twelve_hours = compute_twelve_hour_depths(six_hours, twentyfour_hours)
-     
-    out_df = pd.DataFrame({
-        '1-hr': one_hours,
-        '2-hr': two_hours,
-        '3-hr': three_hours,
-        '6-hr': six_hours,
-        '12-hr': twelve_hours,
-        '24-hr': twentyfour_hours
-    })
-
-    return out_df
-'''
 
 
 class AtlasApp:
     def __init__(self, root):
         self.root = root
         self.root.title("NOAA Atlas 2 Rainfall Tool")
-        self.root.geometry("600x400")
+        self.root.geometry("600x475")
         self.root.resizable(True, True)
         
         self.root.eval('tk::PlaceWindow . center')
@@ -335,8 +28,8 @@ class AtlasApp:
 
         # input fields
         self.state_var = tk.StringVar(value="WA")
-        self.lat_var = tk.StringVar(value="47.110047")
-        self.long_var = tk.StringVar(value="-123.45005")
+        self.lat_var = tk.StringVar(value="47.115078")
+        self.long_var = tk.StringVar(value="-123.754755")
         self.region_var = tk.StringVar(value="3")
         self.elev_var = tk.StringVar(value="341")
         
@@ -373,8 +66,8 @@ class AtlasApp:
         status_label = ttk.Label(main_frame, text="Status:")
         status_label.grid(row=7, column=0, sticky=tk.W, pady=(10,5))
 
-        self.status_text = tk.Text(main_frame, height=5, width=40)
-        self.status_text.grid(row=8, column=0, columnspan=2, pady=5)
+        self.status_text = tk.Text(main_frame, height=10, width=40)
+        self.status_text.grid(row=8, column=0, columnspan=2, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # scrollbar
         scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=self.status_text.yview)
@@ -394,6 +87,7 @@ class AtlasApp:
             region = int(self.region_entry.get())
             elev = float(self.elev_entry.get())
 
+            self.status_text.delete(1.0, tk.END)
             result_df = self.generate_full_data(state, region, lat, long, elev)
             self.update_status_with_dataframe(result_df)
             
@@ -414,7 +108,7 @@ class AtlasApp:
         df_string = df.to_string(
             index=True,
             justify="left",
-            float_format="{:.2f}",
+            float_format=lambda x: f"{x:.2f}",
             max_cols=10,
             max_rows=50
         )
@@ -431,157 +125,138 @@ class AtlasApp:
 
     def read_ascii_grid(self, state:str, recurrence:int, duration:int, lat:float, long:float) -> dict:
         output_dict = {
-                    'state': state,
-                    'recurrence': recurrence,
-                    'duration': duration,
-                    'latitude': lat,
-                    'longitude': long
+            'state': state,
+            'recurrence': recurrence,
+            'duration': duration,
+            'latitude': lat,
+            'longitude': long
         }
-        
         
         file_name = self.generate_ascii_name(state, recurrence, duration)
         directory = os.getcwd()
 
         try:
             file_path = Path(directory, file_name)
+            with open(file_path, 'r') as data_dump:
+                lines_dump = data_dump.readlines()
 
-            data_dump = open(file_path, 'r')
-            lines_dump = data_dump.readlines()
-            print(f"{lines_dump[50]}")
-
-            # get numeric values from header
+            # Get numeric values from header
             num_cols = int(self.clean_ascii_line(lines_dump[0]))
             num_rows = int(self.clean_ascii_line(lines_dump[1]))
             xllc = float(self.clean_ascii_line(lines_dump[2]))
             yllc = float(self.clean_ascii_line(lines_dump[3]))
             cell_size = float(self.clean_ascii_line(lines_dump[4]))
-            nodata_val = int(self.clean_ascii_line(lines_dump[5]))
-            self.update_status(f"header data: {num_cols}, {num_rows}, {xllc}, {yllc}, {cell_size}, {nodata_val}")
-
+            nodata_val = float(self.clean_ascii_line(lines_dump[5]))  # Convert to float
 
         except Exception as e:
             print(f"Error getting ascii grid: {e}")
-            return
+            return None  # Fixed: was missing None
 
-        
         try:
-            # find the rows and cols nearest to the given lat/long
-            # row/lat
-            row_below = (lat - yllc) // cell_size
-
-            # pull those rows - offset is + 5 because of header
-            row_below = row_below + 5
+            # Find the rows and cols nearest to the given lat/long
+            row_from_bottom = int((lat - yllc) // cell_size)
+            row_below = num_rows - row_from_bottom - 1 + 6 # flip + header offset
             row_above = row_below + 1
-            self.update_status(f"rows: {row_below}, {row_above}")
-
             
-
-            # col/long
-            col_left = (long - xllc) // cell_size
+            col_left = int((long - xllc) // cell_size)
             col_right = col_left + 1
-            self.update_status(f"cols: {col_left}, {col_right}")
-            self.update_status(f"{lines_dump[row_below]}")
-            row_lines = lines_dump[row_below:(row_above+1)]
-            # split each line and pull col left, col right
 
+            # Get the data lines
+            row_lines = [lines_dump[row_below], lines_dump[row_above]]
 
-            latitudes = [(yllc + row_below * cell_size),
-                        (yllc + row_below * cell_size),
-                        (yllc + row_above * cell_size),
-                        (yllc + row_below * cell_size)
-                        ]
-            self.update_status(f"{latitudes}")
+            # Calculate coordinates
+            latitudes = [yllc + (row_below - 6) * cell_size,
+                        yllc + (row_below - 6) * cell_size,
+                        yllc + (row_above - 6) * cell_size,
+                        yllc + (row_above - 6) * cell_size]
             
-            longitudes = [(xllc + col_left * cell_size),
-                        (xllc + col_right * cell_size),
-                        (xllc + col_right * cell_size),
-                        (xllc + col_left * cell_size)
-                        ]
-            self.update_status(f"{longitudes}")
-            values = [row_lines[0].split(" ")[col_left],
-                    row_lines[0].split(" ")[col_right],
-                    row_lines[1].split(" ")[col_right],
-                    row_lines[1].split(" ")[col_left]
-                    ]
-            self.update_status(f"{values}")
-            for i in range(len(values)):
-                if values[i] == -9999:
-                    del values[i]
-                    del latitudes[i]
-                    del longitudes[i]
+            longitudes = [xllc + col_left * cell_size,
+                        xllc + col_right * cell_size,
+                        xllc + col_right * cell_size,
+                        xllc + col_left * cell_size]
+            
+            # Extract and convert values to float immediately
+            try:
+                values = [float(row_lines[0].split()[col_left]),
+                        float(row_lines[0].split()[col_right]),
+                        float(row_lines[1].split()[col_right]),
+                        float(row_lines[1].split()[col_left])]
+            except (IndexError, ValueError) as e:
+                print(f"Error extracting values: {e}")
+                return None
+
+            # Remove nodata values
+            valid_indices = [i for i, val in enumerate(values) if val != nodata_val]
+            values = [values[i] for i in valid_indices]
+            latitudes = [latitudes[i] for i in valid_indices]
+            longitudes = [longitudes[i] for i in valid_indices]
             
             if len(values) == 0:
                 print(f"Error: all points are nodata value")
                 return None
             
-            elif len(values) == 1:
-                val_interpd = values[0]
-                
+            # Interpolation logic
+            if len(values) == 1:
+                val_interpd = float(values[0])
+            
             elif len(values) == 2:
-                # linear interpolation between lat/long pairs
-                p0 = np.array([longitudes[0]], latitudes[0])
-                p1 = np.array([longitudes[1]], latitudes[1])
-
+                p0 = np.array([longitudes[0], latitudes[0]])
+                p1 = np.array([longitudes[1], latitudes[1]])
                 query_point = np.array([long, lat])
 
-                # line between points
                 line_vec = p1 - p0
                 line_length_sq = np.dot(line_vec, line_vec)
-                if line_length_sq == 0: # p0 and p1 are the same
-                    return values[0]
                 
-                # project the query onto the line
-                t = np.dot(query_point - p0, line_vec) / line_length_sq
+                if line_length_sq == 0:
+                    val_interpd = float(values[0])
+                else:
+                    t = np.dot(query_point - p0, line_vec) / line_length_sq
+                    if t < 0 or t > 1:
+                        val_interpd = float(np.mean(values))
+                    else:
+                        val_interpd = float(values[0] + t * (values[1] - values[0]))
 
-                # check if projection is within line segment
-                if t < 0 or t > 1:
-                    return None
-                
-                # finally, linearly interp
-                val_interpd = values[0] + t * (values[1] - values[0])
+            elif len(values) >= 3:
+                try:
+                    points = np.array([[longitudes[i], latitudes[i]] for i in range(len(values))])
+                    z_vals = np.array(values, dtype=float)
+                    new_point = np.array([[long, lat]])
 
-            elif len(values) == 3:
-                points = np.array([
-                    [longitudes[0], latitudes[0]],
-                    [longitudes[1], latitudes[1]],
-                    [longitudes[2], latitudes[2]]
-                ])
+                    result = griddata(points, z_vals, new_point, method='linear')
+                    
+                    if len(result) > 0 and not np.isnan(result[0]):
+                        val_interpd = float(result[0])
+                    else:
+                        print(f"Griddata failed, using mean of {len(values)} points")
+                        val_interpd = float(np.mean(values))
+                        
+                except Exception as e:
+                    print(f"Griddata exception: {e}, using mean of {len(values)} points")
+                    val_interpd = float(np.mean(values))
 
-                z_vals = np.array(values)
+            # Final validation
+            if np.isnan(val_interpd):
+                print(f"Warning: final interpolated value is NaN, using mean")
+                val_interpd = float(np.mean(values))
 
-                new_point = np.array([long, lat])
-
-                val_interpd = griddata(points, z_vals, new_point, method='linear')
+            output_dict['depth'] = val_interpd / 100000 # values are given in 100,000 inches
+            output_dict['intensity'] = val_interpd / duration
             
-            elif len(values) == 4:
-                points = np.array([
-                    [longitudes[0], latitudes[0]],
-                    [longitudes[1], latitudes[1]],
-                    [longitudes[2], latitudes[2]],
-                    [longitudes[3], latitudes[3]]
-                ])
-
-                z_vals = np.array(values)
-
-                new_point = np.array([long, lat])
-
-                val_interpd = griddata(points, z_vals, new_point, method='linear')
-
-            else:
-                print(f"Error: too many points in lat/long/val lists")
-                pass
-
-            output_dict['depth'] = val_interpd
-            output_dict['intensity'] = val_interpd / duration        
+            return output_dict
             
         except Exception as e:
-            print(f"Error finding lat/long in ascii grid")
+            print(f"Error in coordinate processing: {e}")
+            import traceback
+            traceback.print_exc()
             return None
-        
-    def general_recurrence_nomogram(self, two_year:float, hundred_year:float) -> dict:
-        mapping_array = [1, 0.75073, 0.58722, 0.37898, 0.18518, 0]
-        mapping_array_comp = 1 - mapping_array
 
+    def general_recurrence_nomogram(self, two_year:float, hundred_year:float) -> dict:
+        print('a')
+        mapping_array = [1, 0.75073, 0.58722, 0.37898, 0.18518, 0]
+        print('b')
+        mapping_array_comp = [1 - i for i in mapping_array]
+        print('c')
+        print(10)
         output_dict = {
                         'two_year': two_year,
                         'five_year': (two_year*mapping_array[1]) + (hundred_year*mapping_array_comp[1]),
@@ -636,30 +311,30 @@ class AtlasApp:
     def compute_two_hour_depths(self, one_hours:dict, six_hours:dict, region:int) -> dict:
         if region == 1:
             return {
-                "two_year": 0.250*six_hours.two_year + 0.750*one_hours.two_year,
-                "five_year": 0.250*six_hours.five_year + 0.750*one_hours.five_year,
-                "ten_year": 0.250*six_hours.ten_year + 0.750*one_hours.ten_year,
-                "twentyfive_year": 0.250*six_hours.twentyfive_year + 0.750*one_hours.twentyfive_year,
-                "fifty_year": 0.250*six_hours.fifty_year + 0.750*one_hours.fifty_year,
-                "hundred_year": 0.250*six_hours.hundred_year + 0.750*one_hours.hundred_year
+                "two_year": 0.250*six_hours['two_year']+ 0.750*one_hours['two_year'],
+                "five_year": 0.250*six_hours['five_year'] + 0.750*one_hours['five_year'],
+                "ten_year": 0.250*six_hours['ten_year'] + 0.750*one_hours['ten_year'],
+                "twentyfive_year": 0.250*six_hours['twentyfive_year'] + 0.750*one_hours['twentyfive_year'],
+                "fifty_year": 0.250*six_hours['fifty_year'] + 0.750*one_hours['fifty_year'],
+                "hundred_year": 0.250*six_hours['hundred_year'] + 0.750*one_hours['hundred_year']
             }
         elif region == 2:
             return {
-                    "two_year": 0.278*six_hours.two_year + 0.722*one_hours.two_year,
-                    "five_year": 0.278*six_hours.five_year + 0.722*one_hours.five_year,
-                    "ten_year": 0.278*six_hours.ten_year + 0.722*one_hours.ten_year,
-                    "twentyfive_year": 0.278*six_hours.twentyfive_year + 0.722*one_hours.twentyfive_year,
-                    "fifty_year": 0.278*six_hours.fifty_year + 0.722*one_hours.fifty_year,
-                    "hundred_year": 0.278*six_hours.hundred_year + 0.722*one_hours.hundred_year
+                    "two_year": 0.278*six_hours['two_year'] + 0.722*one_hours['two_year'],
+                    "five_year": 0.278*six_hours['five_year'] + 0.722*one_hours['five_year'],
+                    "ten_year": 0.278*six_hours['ten_year'] + 0.722*one_hours['ten_year'],
+                    "twentyfive_year": 0.278*six_hours['twentyfive_year'] + 0.722*one_hours['twentyfive_year'],
+                    "fifty_year": 0.278*six_hours['fifty_year'] + 0.722*one_hours['fifty_year'],
+                    "hundred_year": 0.278*six_hours['hundred_year'] + 0.722*one_hours['hundred_year']
             }
         elif region == 3 or region == 4:
             return {
-                    "two_year": 0.240*six_hours.two_year + 0.760*one_hours.two_year,
-                    "five_year": 0.240*six_hours.five_year + 0.760*one_hours.five_year,
-                    "ten_year": 0.240*six_hours.ten_year + 0.760*one_hours.ten_year,
-                    "twentyfive_year": 0.240*six_hours.twentyfive_year + 0.760*one_hours.twentyfive_year,
-                    "fifty_year": 0.240*six_hours.fifty_year + 0.760*one_hours.fifty_year,
-                    "hundred_year": 0.240*six_hours.hundred_year + 0.760*one_hours.hundred_year
+                    "two_year": 0.240*six_hours['two_year'] + 0.760*one_hours['two_year'],
+                    "five_year": 0.240*six_hours['five_year'] + 0.760*one_hours['five_year'],
+                    "ten_year": 0.240*six_hours['ten_year'] + 0.760*one_hours['ten_year'],
+                    "twentyfive_year": 0.240*six_hours['twentyfive_year'] + 0.760*one_hours['twentyfive_year'],
+                    "fifty_year": 0.240*six_hours['fifty_year'] + 0.760*one_hours['fifty_year'],
+                    "hundred_year": 0.240*six_hours['hundred_year'] + 0.760*one_hours['hundred_year']
             }
         else:
             print(f"Error: invalid region: {region}")
@@ -667,30 +342,30 @@ class AtlasApp:
     def compute_three_hour_depths(self, one_hours:dict, six_hours:dict, region:int) -> dict:
         if region == 1:
             return {
-                "two_year": 0.467*six_hours.two_year + 0.533*one_hours.two_year,
-                "five_year": 0.467*six_hours.five_year + 0.533*one_hours.five_year,
-                "ten_year": 0.467*six_hours.ten_year + 0.533*one_hours.ten_year,
-                "twentyfive_year": 0.467*six_hours.twentyfive_year + 0.533*one_hours.twentyfive_year,
-                "fifty_year": 0.467*six_hours.fifty_year + 0.533*one_hours.fifty_year,
-                "hundred_year": 0.467*six_hours.hundred_year + 0.533*one_hours.hundred_year
+                "two_year": 0.467*six_hours['two_year'] + 0.533*one_hours['two_year'],
+                "five_year": 0.467*six_hours['five_year'] + 0.533*one_hours['five_year'],
+                "ten_year": 0.467*six_hours['ten_year'] + 0.533*one_hours['ten_year'],
+                "twentyfive_year": 0.467*six_hours['twentyfive_year'] + 0.533*one_hours['twentyfive_year'],
+                "fifty_year": 0.467*six_hours['fifty_year'] + 0.533*one_hours['fifty_year'],
+                "hundred_year": 0.467*six_hours['hundred_year'] + 0.533*one_hours['hundred_year']
             }
         elif region == 2:
             return {
-                    "two_year": 0.503*six_hours.two_year + 0.497*one_hours.two_year,
-                    "five_year": 0.503*six_hours.five_year + 0.497*one_hours.five_year,
-                    "ten_year": 0.503*six_hours.ten_year + 0.497*one_hours.ten_year,
-                    "twentyfive_year": 0.503*six_hours.twentyfive_year + 0.497*one_hours.twentyfive_year,
-                    "fifty_year": 0.503*six_hours.fifty_year + 0.497*one_hours.fifty_year,
-                    "hundred_year": 0.503*six_hours.hundred_year + 0.497*one_hours.hundred_year
+                    "two_year": 0.503*six_hours['two_year'] + 0.497*one_hours['two_year'],
+                    "five_year": 0.503*six_hours['five_year'] + 0.497*one_hours['five_year'],
+                    "ten_year": 0.503*six_hours['ten_year'] + 0.497*one_hours['ten_year'],
+                    "twentyfive_year": 0.503*six_hours['twentyfive_year'] + 0.497*one_hours['twentyfive_year'],
+                    "fifty_year": 0.503*six_hours['fifty_year'] + 0.497*one_hours['fifty_year'],
+                    "hundred_year": 0.503*six_hours['hundred_year'] + 0.497*one_hours['hundred_year']
             }
         elif region == 3 or region == 4:
             return {
-                    "two_year": 0.468*six_hours.two_year + 0.532*one_hours.two_year,
-                    "five_year": 0.468*six_hours.five_year + 0.532*one_hours.five_year,
-                    "ten_year": 0.468*six_hours.ten_year + 0.532*one_hours.ten_year,
-                    "twentyfive_year": 0.468*six_hours.twentyfive_year + 0.532*one_hours.twentyfive_year,
-                    "fifty_year": 0.468*six_hours.fifty_year + 0.532*one_hours.fifty_year,
-                    "hundred_year": 0.468*six_hours.hundred_year + 0.532*one_hours.hundred_year
+                    "two_year": 0.468*six_hours['two_year'] + 0.532*one_hours['two_year'],
+                    "five_year": 0.468*six_hours['five_year'] + 0.532*one_hours['five_year'],
+                    "ten_year": 0.468*six_hours['ten_year'] + 0.532*one_hours['ten_year'],
+                    "twentyfive_year": 0.468*six_hours['twentyfive_year'] + 0.532*one_hours['twentyfive_year'],
+                    "fifty_year": 0.468*six_hours['fifty_year'] + 0.532*one_hours['fifty_year'],
+                    "hundred_year": 0.468*six_hours['hundred_year'] + 0.532*one_hours['hundred_year']
             }
         else:
             print(f"Error: invalid region: {region}")
@@ -698,14 +373,18 @@ class AtlasApp:
     def generate_full_data(self, state:str, region:int, lat:float, long:float, elev:float):
 
         # first, get 2-year and 100-year 6-hour and 24-hour depths
+        
         twosix = self.read_ascii_grid(state, 2, 6, lat, long)
         twotwentyfour = self.read_ascii_grid(state, 2, 24, lat, long)
         hundredsix = self.read_ascii_grid(state, 100, 6, lat, long)
         hundredtwentyfour = self.read_ascii_grid(state, 100, 24, lat, long)
+        self.update_status(f"2yr6hr: {twosix['depth']}")
+        self.update_status(f"2yr24hr: {twotwentyfour['depth']}")
+        self.update_status(f"100yr6hr: {hundredsix['depth']}")
+        self.update_status(f"100yr24hr: {hundredtwentyfour['depth']}")
 
         # get all 6-hour depths, including storing 2 and 24 hour
         six_hours = self.general_recurrence_nomogram(twosix['depth'], hundredsix['depth'])
-        print(six_hours)
 
         # get all 24-hour depths
         twentyfour_hours = self.general_recurrence_nomogram(twotwentyfour['depth'], hundredtwentyfour['depth'])
