@@ -397,7 +397,7 @@ class AtlasApp:
         except Exception as e:
             self.update_status(f"Error: {e}")
 
-    def update_status(self, message):
+    def update_status(self, message:str):
         self.status_text.insert(tk.End, message + "\n")
         self.status_text.see(tk.End)
 
@@ -422,7 +422,7 @@ class AtlasApp:
     def clean_ascii_line(self, ascii_line:str) -> str:
         return ascii_line.split(" ")[1].split("\n")[0]
 
-    def read_ascii_grid(self, state:str, recurrence:int, duration:int, lat:float, long:float):
+    def read_ascii_grid(self, state:str, recurrence:int, duration:int, lat:float, long:float) -> dict:
         output_dict = {
                     'state': state,
                     'recurrence': recurrence,
@@ -566,7 +566,7 @@ class AtlasApp:
             print(f"Error finding lat/long in ascii grid")
             return None
         
-    def general_recurrence_nomogram(self, two_year, hundred_year):
+    def general_recurrence_nomogram(self, two_year:float, hundred_year:float) -> dict:
         mapping_array = [1, 0.75073, 0.58722, 0.37898, 0.18518, 0]
         mapping_array_comp = 1 - mapping_array
 
@@ -581,7 +581,7 @@ class AtlasApp:
 
         return output_dict
 
-    def compute_one_hour_data(self, six_hour_data:dict, twentyfour_hour_data:dict, region:int, lat:float, long:float, elev:float):
+    def compute_one_hour_data(self, six_hour_data:dict, twentyfour_hour_data:dict, region:int, lat:float, long:float, elev:float) -> dict:
             
         x_one = six_hour_data['two_year']
         x_two = twentyfour_hour_data['two_year']
@@ -610,7 +610,7 @@ class AtlasApp:
         one_hour = self.general_recurrence_nomogram(two_one, hundred_one)
         return one_hour
 
-    def compute_twelve_hour_depths(self, six_hours, twentyfour_hours):
+    def compute_twelve_hour_depths(self, six_hours:dict, twentyfour_hours:dict) -> dict:
         output_dict = {
                         'two_year': (six_hours['two_year'] + twentyfour_hours['two_year'])/2,
                         'five_year': (six_hours['five_year'] + twentyfour_hours['five_year'])/2,
@@ -621,7 +621,7 @@ class AtlasApp:
         }
         return output_dict
 
-    def compute_two_hour_depths(self, one_hours:dict, six_hours:dict, region:int):
+    def compute_two_hour_depths(self, one_hours:dict, six_hours:dict, region:int) -> dict:
         if region == 1:
             return {
                 "two_year": 0.250*six_hours.two_year + 0.750*one_hours.two_year,
@@ -652,7 +652,7 @@ class AtlasApp:
         else:
             print(f"Error: invalid region: {region}")
         
-    def compute_three_hour_depths(self, one_hours:dict, six_hours:dict, region:int):
+    def compute_three_hour_depths(self, one_hours:dict, six_hours:dict, region:int) -> dict:
         if region == 1:
             return {
                 "two_year": 0.467*six_hours.two_year + 0.533*one_hours.two_year,
