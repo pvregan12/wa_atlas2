@@ -320,7 +320,7 @@ class AtlasApp:
     def __init__(self, root):
         self.root = root
         self.root.title("NOAA Atlas 2 Rainfall Tool")
-        self.root.geometry("400x300")
+        self.root.geometry("600x400")
         self.root.resizable(True, True)
         
         self.root.eval('tk::PlaceWindow . center')
@@ -334,30 +334,35 @@ class AtlasApp:
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # input fields
-        state_var = tk.StringVar()
-        state_label = ttk.Label(main_frame, text="State")
+        self.state_var = tk.StringVar(value="WA")
+        self.lat_var = tk.StringVar(value="47.110047")
+        self.long_var = tk.StringVar(value="-123.45005")
+        self.region_var = tk.StringVar(value="3")
+        self.elev_var = tk.StringVar(value="341")
+        
+        state_label = ttk.Label(main_frame, text="State:")
         state_label.grid(row=1, column=0, sticky=tk.W, pady=5, padx=(0,10))
-        self.state_entry = ttk.Entry(main_frame, width=25)
+        self.state_entry = ttk.Entry(main_frame, textvariable=self.state_var, width=25)
         self.state_entry.grid(row=1, column=1, sticky=(tk.W, tk.E))
 
-        lat_label = ttk.Label(main_frame, text="Latitude (decimal)")
+        lat_label = ttk.Label(main_frame, text="Latitude (decimal):")
         lat_label.grid(row=2, column=0, sticky=tk.W, pady=5, padx=(0,10))
-        self.lat_entry = ttk.Entry(main_frame, width=25)
+        self.lat_entry = ttk.Entry(main_frame, textvariable=self.lat_var, width=25)
         self.lat_entry.grid(row=2, column=1, sticky=(tk.W, tk.E))
 
-        long_label = ttk.Label(main_frame, text="Longitude (decimal)")
+        long_label = ttk.Label(main_frame, text="Longitude (decimal):")
         long_label.grid(row=3, column=0, sticky=tk.W, pady=5, padx=(0,10))
-        self.long_entry = ttk.Entry(main_frame, width=25)
+        self.long_entry = ttk.Entry(main_frame, textvariable=self.long_var, width=25)
         self.long_entry.grid(row=3, column=1, sticky=(tk.W, tk.E))
 
-        region_label = ttk.Label(main_frame, text="Region (1-4))")
+        region_label = ttk.Label(main_frame, text="Region (1-4):")
         region_label.grid(row=4, column=0, sticky=tk.W, pady=5, padx=(0,10))
-        self.region_entry = ttk.Entry(main_frame, width=25)
+        self.region_entry = ttk.Entry(main_frame, textvariable=self.region_var, width=25)
         self.region_entry.grid(row=4, column=1, sticky=(tk.W, tk.E))
 
-        elev_label = ttk.Label(main_frame, text="Elevation (ft NGVD29)")
+        elev_label = ttk.Label(main_frame, text="Elevation (ft NGVD29):")
         elev_label.grid(row=5, column=0, sticky=tk.W, pady=5, padx=(0,10))
-        self,elev_entry = ttk.Entry(main_frame, width=25)
+        self.elev_entry = ttk.Entry(main_frame, textvariable=self.elev_var, width=25)
         self.elev_entry.grid(row=5, column=1, sticky=(tk.W, tk.E))
 
         # run button 
@@ -366,7 +371,7 @@ class AtlasApp:
 
         # status
         status_label = ttk.Label(main_frame, text="Status:")
-        state_label.grid(row=7, column=0, sticky=tk.W, pady=(10,5))
+        status_label.grid(row=7, column=0, sticky=tk.W, pady=(10,5))
 
         self.status_text = tk.Text(main_frame, height=5, width=40)
         self.status_text.grid(row=8, column=0, columnspan=2, pady=5)
@@ -398,8 +403,8 @@ class AtlasApp:
             self.update_status(f"Error: {e}")
 
     def update_status(self, message:str):
-        self.status_text.insert(tk.End, message + "\n")
-        self.status_text.see(tk.End)
+        self.status_text.insert(tk.END, message + "\n")
+        self.status_text.see(tk.END)
 
     def update_status_with_dataframe(self, df):
         # clear
@@ -417,7 +422,9 @@ class AtlasApp:
 
     def generate_ascii_name(self, state:str, recurrence:int, duration:int) -> str:
         state = state.lower()
-        return "na2_"+state+"_"+str(recurrence)+"yr"+str(duration)+"hr.asc"
+        asc_nm = "na2_"+state+"_"+str(recurrence)+"yr"+str(duration)+"hr.asc"        
+        print(f"filename: {asc_nm}")
+        return asc_nm
 
     def clean_ascii_line(self, ascii_line:str) -> str:
         return ascii_line.split(" ")[1].split("\n")[0]
@@ -440,6 +447,7 @@ class AtlasApp:
 
             data_dump = open(file_path, 'r')
             lines_dump = data_dump.readlines()
+            print(f"{lines_dump[50]}")
 
             # get numeric values from header
             num_cols = int(self.clean_ascii_line(lines_dump[0]))
@@ -448,6 +456,7 @@ class AtlasApp:
             yllc = float(self.clean_ascii_line(lines_dump[3]))
             cell_size = float(self.clean_ascii_line(lines_dump[4]))
             nodata_val = int(self.clean_ascii_line(lines_dump[5]))
+            self.update_status(f"header data: {num_cols}, {num_rows}, {xllc}, {yllc}, {cell_size}, {nodata_val}")
 
 
         except Exception as e:
@@ -463,14 +472,16 @@ class AtlasApp:
             # pull those rows - offset is + 5 because of header
             row_below = row_below + 5
             row_above = row_below + 1
+            self.update_status(f"rows: {row_below}, {row_above}")
 
             
 
             # col/long
             col_left = (long - xllc) // cell_size
             col_right = col_left + 1
-
-            row_lines = lines_dump[row_below, row_above]
+            self.update_status(f"cols: {col_left}, {col_right}")
+            self.update_status(f"{lines_dump[row_below]}")
+            row_lines = lines_dump[row_below:(row_above+1)]
             # split each line and pull col left, col right
 
 
@@ -479,19 +490,20 @@ class AtlasApp:
                         (yllc + row_above * cell_size),
                         (yllc + row_below * cell_size)
                         ]
+            self.update_status(f"{latitudes}")
             
             longitudes = [(xllc + col_left * cell_size),
                         (xllc + col_right * cell_size),
                         (xllc + col_right * cell_size),
                         (xllc + col_left * cell_size)
                         ]
-            
+            self.update_status(f"{longitudes}")
             values = [row_lines[0].split(" ")[col_left],
                     row_lines[0].split(" ")[col_right],
                     row_lines[1].split(" ")[col_right],
                     row_lines[1].split(" ")[col_left]
                     ]
-            
+            self.update_status(f"{values}")
             for i in range(len(values)):
                 if values[i] == -9999:
                     del values[i]
