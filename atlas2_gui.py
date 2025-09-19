@@ -277,10 +277,6 @@ def compute_three_hour_depths(one_hours:dict, six_hours:dict, region:int):
     else:
         print(f"Error: invalid region: {region}")
 
-
-
-
-
 def generate_full_data(state:str, region:int, lat:float, long:float, elev:float):
 
     # first, get 2-year and 100-year 6-hour and 24-hour depths
@@ -306,29 +302,19 @@ def generate_full_data(state:str, region:int, lat:float, long:float, elev:float)
     # get all 12-hour depths
     twelve_hours = compute_twelve_hour_depths(six_hours, twentyfour_hours)
 
-    duration_labels = [("1-hr" => one_hours),
-                        ("2-hr" => two_hours),
-                        ("3-hr" => three_hours),
-                        ("6-hr" => six_hours),
-                        ("12-hr" => twelve_hours),
-                        ("24-hr" => twentyfour_hours)]
-    
-
-    out_df = pd.DataFrame(recurrence=[], duration=[], depth=[])
-
-
-    # format into a dataframe
-    for (dur_label, nt) in duration_labels
-        for (k, v) in pairs(nt)
-            rec = str(k)
-            depth = v isa AbstractVector ? only(v) : Float64(v)
-            push!(out_df, (rec, dur_label, depth))
         
-    
-    # long => wide format
-    wide_df = unstack(out_df, :recurrence, :duration, :depth)
-    #pretty_results = pretty_table(wide_df)
-    return wide_df
+
+    out_df = pd.DataFrame({
+        '1-hr': one_hours,
+        '2-hr': two_hours,
+        '3-hr': three_hours,
+        '6-hr': six_hours,
+        '12-hr': twelve_hours,
+        '24-hr': twentyfour_hours
+    })
+
+
+    return out_df
 
 
 
